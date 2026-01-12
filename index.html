@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <link rel="apple-touch-icon" href="icon.PNG">
+<link rel="icon" href="icon.PNG">
+    <meta charset="UTF-8">
+    <title>국가대표선발전</title>
+    <style>
+        :root {
+            --primary-color: #39FF14;
+            --bg-color: #0a0a0a;
+            --card-bg: #1a1a1a;
+            --danger-color: #ff4d4d;
+            --blue-bar: #007bff;
+        }
+
+        body { 
+            background-color: var(--bg-color); 
+            color: var(--primary-color); 
+            font-family: 'Pretendard', 'Malgun Gothic', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; margin: 0; overflow: hidden; 
+        }
+        
+        #game-container {
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            width: 100%; height: 100%; position: relative;
+        }
+
+        #main-screen {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center;
+        }
+
+        #main-title { font-size: 24px; color: #888; margin-bottom: 15px; letter-spacing: 3px; font-weight: 300; }
+        #main-sub { font-size: 40px; color: #fff; margin-bottom: 50px; font-weight: 700; }
+
+        #guide-area { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #type-info { font-size: 45px; color: #ffffff; margin-bottom: 20px; font-weight: 600; }
+        #q-number-bar {
+            background-color: var(--blue-bar);
+            color: white;
+            padding: 5px 45px;
+            border-radius: 4px;
+            font-size: 28px;
+            font-weight: bold;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        #flash-display { 
+            font-size: 260px; font-weight: 400; height: 300px; 
+            display: flex; align-items: center; justify-content: center;
+            text-shadow: 0 0 20px rgba(57, 255, 20, 0.2);
+        }
+        
+        #input-area { display: none; text-align: center; }
+        .input-label { font-size: 40px; color: #ffffff; margin-bottom: 20px; font-weight: bold; }
+        .timer-text { color: var(--danger-color); font-size: 20px; margin-top: 15px; letter-spacing: 1px; }
+
+        .input-wrapper {
+            background: var(--card-bg); border: 2px solid #333; border-radius: 16px;
+            padding: 15px 40px; box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+        }
+
+        input { background: transparent; border: none; color: white; font-size: 85px; width: 350px; text-align: center; outline: none; }
+        
+        #result-view { 
+            display: none; width: 85%; max-height: 85vh; overflow-y: auto; 
+            border-radius: 24px; border: 1px solid #333; padding: 45px; 
+            background: var(--card-bg); text-align: center;
+        }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+        th { color: #888; padding: 18px; border-bottom: 2px solid #333; }
+        td { padding: 18px; font-size: 22px; border-bottom: 1px solid #222; }
+        .wrong { color: var(--danger-color); text-decoration: line-through; opacity: 0.6; }
+        
+        .btn { cursor: pointer; transition: all 0.3s; padding: 22px 80px; font-size: 28px; background: transparent; color: var(--primary-color); border: 2px solid var(--primary-color); border-radius: 100px; }
+        .btn:hover { background: var(--primary-color); color: black; }
+        #stopBtn { position: fixed; bottom: 30px; right: 30px; padding: 12px 25px; font-size: 18px; border-radius: 8px; border-color: #444; color: #888; }
+    </style>
+</head>
+<body>
+
+    <div id="main-screen">
+        <div id="main-title">대한민국국가대표선발전 플래쉬암산 연습</div>
+        <div id="main-sub">플래쉬암산 챌린지</div>
+        <button id="startBtn" class="btn">연습 시작하기</button>
+    </div>
+
+    <div id="game-container">
+        <div id="guide-area">
+            <div id="type-info"></div>
+            <div id="q-number-bar"></div>
+        </div>
+        
+        <div id="flash-display"></div>
+
+        <div id="input-area">
+            <div class="input-label">답을 쓰세요</div>
+            <div class="input-wrapper">
+                <input type="number" id="answerInput" autocomplete="off" readonly>
+            </div>
+            <div id="timer-display" class="timer-text">제한시간: 5초</div>
+        </div>
+        
+        <button id="stopBtn" class="btn" onclick="terminateGame()">그만하기</button>
+    </div>
+
+    <div id="result-view">
+        <h1 id="total-score" style="color:white; font-size: 50px;"></h1>
+        <table id="result-table">
+            <thead><tr><th>문제</th><th>정답</th><th>입력</th><th>판정</th></tr></thead>
+            <tbody id="result-body"></tbody>
+        </table>
+        <button onclick="location.reload()" style="margin-top:40px;" class="btn">다시 시작하기</button>
+    </div>
+
+    <script>
+        let audioCtx;
+        let results = [];
+        let isTerminated = false;
+
+        function playTone(freq, type, dur, vol, decay = true) {
+            if(!audioCtx) return;
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.type = type;
+            o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            g.gain.setValueAtTime(vol, audioCtx.currentTime);
+            if(decay) g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + dur);
+        }
+
+        // 1. 유형 안내음 (띠링띠링!! - 높은 음)
+        function playNotice() {
+            playTone(880, 'sine', 0.1, 0.05); // 라(A5)
+            setTimeout(() => playTone(1108.73, 'sine', 0.15, 0.05), 100); // 도#(C#6)
+        }
+
+        // 2. 집중 예비음 (띠이~ 띠이~ 띠이~ 세 번)
+        async function playFocusBeeps() {
+            for(let i=0; i<3; i++) {
+                playTone(1046.50, 'sine', 0.4, 0.06, true); // 높은 도(C6)
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        }
+
+        // 3. 시끄러운 따랑따랑따랑따랑!! (금속성 벨소리 연타)
+        function playAlarm() {
+            const duration = 0.8; 
+            const speed = 70; 
+            for(let i=0; i < (duration * 1000 / speed); i++) {
+                setTimeout(() => {
+                    if(isTerminated) return;
+                    // 금속 느낌을 위해 배음 주파수 혼합
+                    playTone(1500, 'square', 0.05, 0.04, false);
+                    playTone(2200, 'sine', 0.05, 0.02, false);
+                }, i * speed);
+            }
+        }
+
+        const questConfigs = {
+            1: {d:2, r:5, t:500}, 2: {d:2, r:5, t:500},
+            3: {d:2, r:7, t:500}, 4: {d:2, r:7, t:500},
+            5: {d:3, r:5, t:700}, 6: {d:3, r:5, t:700},
+            7: {d:3, r:7, t:500}, 8: {d:3, r:7, t:500},
+            9: {d:3, r:10, t:400}, 10: {d:3, r:10, t:400},
+            11: {d:4, r:7, t:700}, 12: {d:4, r:7, t:700},
+            13: {d:4, r:10, t:700}, 14: {d:4, r:10, t:700},
+            15: {d:5, r:7, t:1000}, 16: {d:5, r:7, t:1000}
+        };
+
+        document.getElementById('startBtn').addEventListener('click', function() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            document.getElementById('main-screen').style.display = 'none';
+            document.getElementById('game-container').style.display = 'flex';
+            runGame();
+        });
+
+        async function runGame() {
+            for(let qNum = 1; qNum <= 16; qNum++) {
+                if(isTerminated) break;
+                await runQuest(qNum);
+            }
+            showResult();
+        }
+
+        async function runQuest(qNum) {
+            const conf = questConfigs[qNum];
+            const guideArea = document.getElementById('guide-area');
+            const typeInfo = document.getElementById('type-info');
+            const qBar = document.getElementById('q-number-bar');
+            const display = document.getElementById('flash-display');
+            const inputArea = document.getElementById('input-area');
+            const input = document.getElementById('answerInput');
+            const timerDisp = document.getElementById('timer-display');
+
+            inputArea.style.display = "none";
+            display.innerText = "";
+            guideArea.style.display = "flex"; 
+            
+            typeInfo.innerText = `${conf.d}위 ${conf.r}행 ${(conf.t/1000).toFixed(1)}초`;
+            qBar.innerText = `${qNum}번`;
+            
+            // 띠링띠링!!
+            playNotice();
+            await new Promise(r => setTimeout(r, 1800));
+
+            // 띠이~ 띠이~ 띠이~ (세 번)
+            await playFocusBeeps();
+
+            guideArea.style.display = "none";
+
+            let sum = 0;
+            for(let i=0; i<conf.r; i++) {
+                if(isTerminated) break;
+                let n = Math.floor(Math.random() * (Math.pow(10, conf.d) - Math.pow(10, conf.d-1))) + Math.pow(10, conf.d-1);
+                sum += n;
+                display.innerText = n;
+                playTone(1200, 'square', 0.04, 0.02); // 띡!
+                await new Promise(r => setTimeout(r, conf.t));
+                display.innerText = "";
+                await new Promise(r => setTimeout(r, 50));
+            }
+
+            if(isTerminated) return;
+
+            // 따랑따랑따랑따랑!!
+            playAlarm();
+            
+            inputArea.style.display = "block";
+            input.value = "";
+            input.readOnly = false;
+            setTimeout(() => input.focus(), 10); 
+
+            for(let sec = 5; sec > 0; sec--) {
+                timerDisp.innerText = `제한시간: ${sec}초`;
+                await new Promise(r => setTimeout(r, 1000));
+                if(isTerminated) return;
+            }
+
+            results.push({ q: qNum, ans: sum, user: parseInt(input.value) || 0 });
+            input.readOnly = true;
+        }
+
+        function terminateGame() {
+            isTerminated = true;
+            showResult();
+        }
+
+        function showResult() {
+            document.getElementById('game-container').style.display = 'none';
+            document.getElementById('result-view').style.display = 'block';
+            let correct = 0;
+            const tbody = document.getElementById('result-body');
+            tbody.innerHTML = "";
+
+            for(let i = 1; i <= 16; i++) {
+                let r = results.find(res => res.q === i);
+                const row = tbody.insertRow();
+                if (r) {
+                    const isOk = r.ans === r.user;
+                    if(isOk) correct++;
+                    row.innerHTML = `<td>${i}번</td><td>${r.ans}</td><td class="${isOk?'':'wrong'}">${r.user}</td><td>${isOk?'<span style="color:var(--primary-color)">정답</span>':'<span style="color:var(--danger-color)">오답</span>'}</td>`;
+                } else {
+                    row.innerHTML = `<td>${i}번</td><td>-</td><td class="wrong">미풀이</td><td>오답</td>`;
+                }
+            }
+            document.getElementById('total-score').innerText = `총점: ${correct} / 16`;
+        }
+    </script>
+</body>
+</html>
